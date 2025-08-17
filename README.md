@@ -1,81 +1,75 @@
-Cloudflare Tools (cf-tools)
+# cf-tools — Cloudflare Batch Utilities
 
-A collection of Cloudflare automation scripts for batch-processing jobs that you can’t do from the Cloudflare Dashboard UI.
+A growing collection of **small, sharp tools** for Cloudflare housekeeping tasks that are awkward or impossible to do quickly in the UI — especially **batch** or **looped** maintenance jobs.
 
-This repo is designed to house a growing set of utilities that help developers and teams automate maintenance tasks, reduce clutter, and keep their Cloudflare accounts tidy.
+> **Status:** v0 — first utility included. More coming soon.
 
-🚀 Current Tools
-1. Cloudflare Pages Deployment Cleanup
+---
 
-Problem:
-Every git push creates a new deployment (production or preview) in Cloudflare Pages. Over time, these can pile up — often leaving hundreds of unused deployments that clutter your project.
+## ✨ Included Tools
 
-Solution:
-The cleanup_pages_deployments.py script deletes all deployments (production + preview) except the most recent production deployment, ensuring your Pages project stays lean.
+### 1) Pages Deployment Wiper (keep newest production)
+Deletes **all** Cloudflare Pages deployments (both **production** and **preview**) **except** the newest production deployment for a project. Useful after a burst of commits that left hundreds of old deployments lying around.
 
-It runs in safe batches of 24 deletions per loop with exponential backoff to avoid hitting API rate limits. The script repeats until only the latest production deployment remains.
+- Loops in batches (default: 24 per sweep)
+- Retries politely with backoff on 429/5xx
+- Stops automatically when nothing eligible remains
+- Streams clear logs for CI
 
-🛠 Usage
-1. Install requirements
-pip install requests
+**Script:** `cleanup_pages_deployments.py`
 
-2. Set environment variables
+<details>
+<summary>What it does, exactly</summary>
 
-Configure the following (safe for public repos — just set them in CI/CD or shell):
+- Fetches deployments for the project (`production` and `preview`) via the Cloudflare API.
+- Determines the **single newest production** deployment and marks it as the **keep**.
+- Repeatedly deletes:
+  - All **preview** deployments.
+  - All **older production** deployments (i.e., every production deployment except the newest one).
+- Works in sweeps of 24 by default until there’s nothing left to delete.
+</details>
 
-export CF_API_TOKEN="your-cloudflare-api-token"
-export CF_ACCOUNT_ID="your-cloudflare-account-id"
-export CF_PAGES_PROJECT="your-pages-project-name"
+---
 
+## ⚙️ Requirements
 
-CF_API_TOKEN → API token with Pages Read + Delete permissions
+- **Python** ≥ 3.8
+- **requests** library (`pip install -r requirements.txt` or `pip install requests`)
+- A Cloudflare API token with **Pages read + delete** permissions for the account
 
-CF_ACCOUNT_ID → Found in your Cloudflare dashboard (not your email)
+> ⚠️ **Irreversible:** Deletions can’t be undone. Double-check your project and account IDs.
 
-CF_PAGES_PROJECT → Your Pages project name
+---
 
-3. Run the script
+## 🔧 Configuration
+
+Set the following **environment variables** (safe for public repos when stored as CI secrets):
+
+- `CF_API_TOKEN` — Cloudflare API Token (Pages read/delete for the account)
+- `CF_ACCOUNT_ID` — Your Cloudflare **Account ID** (not your email)
+- `CF_PAGES_PROJECT` — Cloudflare **Pages project** name (slug)
+
+You can find:
+- **Account ID** in the Cloudflare dashboard URL bar (Account Home) or in **Workers & Pages → Overview**.
+- **Project name** in **Workers & Pages → Pages → Your Project** (the slug used in API URLs).
+
+---
+
+## 🚀 Quick Start (local)
+
+```bash
+# 1) Clone
+git clone https://github.com/datadudedev/cf-tools.git
+cd cf-tools
+
+# 2) Install deps
+python -m venv .venv && source .venv/bin/activate   # (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt
+
+# 3) Export env vars
+export CF_API_TOKEN=********
+export CF_ACCOUNT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export CF_PAGES_PROJECT=my-pages-project
+
+# 4) Run the wiper
 python cleanup_pages_deployments.py
-
-4. Exit codes
-
-0 → Success
-
-1 → Config or API fetch failure
-
-2 → Some deletions failed
-
-🔍 Example Output
-[init] Validating configuration…
-[init] Configuration OK.
-[keep] Keeping newest PRODUCTION deployment id=abc123
-[loop] Sweep #1 — scanning for deletions…
-[loop] Deleting up to 24 of 153 candidates this sweep…
-[delete] OK   id=def456
-[delete] OK   id=ghi789
-...
-[loop] Nothing left to delete. Exiting cleanup loop.
-[run] Cleanup complete. Deleted=152, Failed=0. Kept id=abc123
-[done] Exiting Cloudflare Pages cleanup script.
-
-📦 Roadmap
-
-This repo will expand with more Cloudflare automation helpers, such as:
-
-🔄 Batch DNS record operations
-
-🗑 Bulk cache purge
-
-📊 Analytics fetchers
-
-🧹 Worker + KV cleanup scripts
-
-Stay tuned — contributions and suggestions are welcome!
-
-🤝 Contributing
-
-PRs are welcome! If you have an idea for a Cloudflare script that solves a UI limitation, feel free to open an issue or submit a PR.
-
-📜 License
-
-MIT License © Datadude.dev
